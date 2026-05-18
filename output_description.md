@@ -1,60 +1,47 @@
-# Output File Description
+# Understanding The Main Output
 
-This document describes the structure of:
+The main output file, `output/onet_harmonized_all_versions_long.csv`, is the “master table” for this project. If you want one place that contains the full harmonized history, this is it. The per-version files (`onet_harmonized_target_soc_2018.csv`, etc.) are just filtered slices of this same dataset.
 
-- `output/onet_harmonized_all_versions_long.csv`
+At a high level, each row is one task observation from a specific O*NET release year, mapped from its original occupation code into one target SOC version. Since SOC crosswalks can split one source occupation into multiple target occupations, one original source row can expand into multiple rows here. That expansion is expected and is part of preserving valid mappings instead of forcing a lossy one-to-one match.
 
-and how to interpret key fields.
+## How To Read A Row
 
-## What This File Contains
+The easiest way to think about a row is: “this task came from this source occupation and year, and after harmonization it maps to this target occupation/version, with this canonical task ID and these rating fields.”
 
-`onet_harmonized_all_versions_long.csv` is the master long-format table produced in Step 4.  
-Each row represents a task statement row from a specific O*NET release year, mapped to one target SOC taxonomy/version.
+`ONET_release_year` tells you which historical O*NET release the source row came from. `source_onet_soc_version` and `source_onet_soc_code` tell you the source taxonomy version and code from that release context. `source_occupation_title` is the human-readable title for that source code (when available from source files/crosswalk titles).
 
-Because crosswalks can be one-to-many, a single source row may produce multiple rows in this file.
+`target_soc_version` and `target_soc_code` tell you where that source row landed after harmonization. `target_occupation_title` is the corresponding target title. If you are doing analysis in one standardized system (for example, SOC 2018), this is the pair you will usually filter on first.
 
-## Core Identifier Fields
+## Task Identity And Canonicalization
 
-- `ONET_release_year`: O*NET release year for the source row.
-- `source_onet_soc_version`: source O*NET-SOC taxonomy version inferred from release year (`2000`, `2006`, `2009`, `2010`, `2019`).
-- `source_onet_soc_code`: original occupation code in the source taxonomy.
-- `source_occupation_title`: occupation title for the source code (when available from statement files or crosswalk titles).
-- `target_soc_version`: harmonization target taxonomy version (`2000`, `2006`, `2009`, `2010`, `2019`, `2018`).
-- `target_soc_code`: mapped occupation code in the target taxonomy.
-- `target_occupation_title`: occupation title for the mapped target code.
-- `canon_id`: canonical task cluster ID (embedding-based task harmonization).
+`Task ID` and `Task` are the original O*NET task fields. Because task wording can drift over time (“maintain records” vs “maintain detailed records”), the pipeline also creates `task_clean` and then assigns `canon_id`, which is the canonical cluster ID used to group semantically similar statements together.
 
-## Task Content Fields
+In practice, `canon_id` is what gives you stable task identity across years/releases, while `Task` is the raw wording snapshot from the source year.
 
-- `Task ID`: O*NET task identifier from source statement file.
-- `Task`: raw task text.
-- `task_clean`: normalized task text used for canonical clustering.
-- `Task Type`: O*NET task type (for example, Core / Supplemental).
-- `Incumbents Responding`: respondent count field from O*NET source when present.
-- `Date`: source record date field from O*NET source.
-- `Domain Source`: source domain metadata from O*NET file.
+## Ratings And Derived Metrics
 
-## Rating Fields
+The rating fields are merged after canonicalization. `mean_importance` comes from O*NET importance ratings. `importance_normalized_all` is the within-occupation-year normalized share so you can compare task importance composition inside each occupation-year group. `mean_frequency` is the expected frequency measure derived from frequency scale inputs.
 
-These are merged from harmonized task ratings:
+`task_intensity` is a simple combined measure (`mean_importance * mean_frequency`) and is useful when you want one number capturing both salience and expected repetition.
 
-- `mean_importance`: importance score (from `Scale ID = IM`).
-- `importance_normalized_all`: within-occupation-year normalized importance.
-- `mean_frequency`: expected frequency derived from `Scale ID = FT`.
-- `task_intensity`: `mean_importance * mean_frequency`.
+The important thing to know is that this rating pipeline is separate from statement crosswalk harmonization logic. Task statements drive mapping and canonicalization; ratings are linked afterward using occupation code, year, and `canon_id`.
 
-## Time Coverage Fields
+## Rating Assumptions (What We Chose)
 
-- `first_seen`: first `ONET_release_year` where this `(target_soc_version, target_soc_code, canon_id)` appears.
-- `last_seen`: last `ONET_release_year` where this `(target_soc_version, target_soc_code, canon_id)` appears.
+For ratings, the current pipeline uses O*NET task rating files and keeps rows where `Recommend Suppress != "Y"` and `Scale ID` is either `IM` (importance) or `FT` (frequency). That means suppressed rows are excluded by design, and non-IM/FT scales are not part of the final metrics.
 
-## Related Final Files
+`mean_importance` is the raw `Data Value` from IM rows. `importance_normalized_all` is computed as each task’s importance divided by the sum of importance values within the same occupation-year, so it behaves like a within-occupation composition share for that year.
 
-Per-version exports are filtered subsets of this master file:
+`mean_frequency` is built from FT rows by computing a weighted frequency total (`Category * Data Value`) aggregated by occupation-year-canon task, then dividing by 100 to convert the percentage-style scale into an expected-frequency style measure.
 
-- `output/onet_harmonized_target_soc_2000.csv`
-- `output/onet_harmonized_target_soc_2006.csv`
-- `output/onet_harmonized_target_soc_2009.csv`
-- `output/onet_harmonized_target_soc_2010.csv`
-- `output/onet_harmonized_target_soc_2018.csv`
-- `output/onet_harmonized_target_soc_2019.csv`
+`task_intensity` assumes multiplicative combination is a useful proxy for “important and frequent.” In other words, it treats importance and frequency as complementary dimensions and uses their product rather than a weighted average.
+
+## Time-Coverage Fields
+
+`first_seen` and `last_seen` are computed for each `(target_soc_version, target_soc_code, canon_id)` combination. They give you the observed lifespan of that harmonized task-within-occupation in the historical panel. This is helpful for tracking emergence, persistence, and decline patterns.
+
+## Important Practical Notes
+
+Because the file is long-format and mapping-preserving, row counts can be larger than raw input statement counts. That is normal. Also, title fields are best-effort and come from available source/crosswalk title columns, so occasional blanks can still happen for sparse historical records.
+
+If you only want one taxonomy target for modeling, filter to one `target_soc_version` (for example, `"2018"`) and use the corresponding `target_soc_code` plus `canon_id` as your core panel keys. If you want to study classification drift itself, keep the full file and compare across target versions.
