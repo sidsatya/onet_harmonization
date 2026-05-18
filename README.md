@@ -1,6 +1,6 @@
 # O*NET Task Harmonization Pipeline
 
-A reproducible Python pipeline for harmonizing historical O*NET task statements and task ratings across O*NET-SOC taxonomies, with final exports for each target SOC version.
+A reproducible Python pipeline for harmonizing historical O\*NET task statements and task ratings across O*NET-SOC taxonomies, with final exports for each target SOC version.
 
 ## Key Features
 
