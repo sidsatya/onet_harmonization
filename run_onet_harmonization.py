@@ -6,10 +6,10 @@ This script orchestrates steps 1-4 and ensures output directories exist.
 import argparse
 
 from pipeline_utils import ensure_dirs
-from step1_prepare_task_statements import run_step1
-from step2_cluster_task_statements import run_step2
-from step3_harmonize_task_ratings import run_step3
-from step4_build_final_outputs import run_step4
+from scripts.step1_prepare_task_statements import run_step1
+from scripts.step2_cluster_task_statements import run_step2
+from scripts.step3_harmonize_task_ratings import run_step3
+from scripts.step4_build_final_outputs import run_step4
 
 
 def main() -> None:

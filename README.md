@@ -2,7 +2,7 @@
 
 This project provides a reproducible pipeline for harmonizing historical O*NET task statements and task ratings across O*NET-SOC taxonomies. The goal is to make long-run task data comparable over time, even when occupation codes and classification systems change between releases.
 
-The pipeline is organized around a single runner script, `run_onet_harmonization.py`, which calls the step scripts in sequence. Raw source files live under `data/`, intermediate processing artifacts are written to `intermediate_data/`, and final deliverables are written to `output/`.
+The pipeline is organized around a single runner script, `run_onet_harmonization.py`, which calls step scripts from `scripts/` in sequence. Diagnostics live in `diagnostics/`. Raw source files live under `data/`, intermediate processing artifacts are written to `intermediate_data/`, and final deliverables are written to `output/`.
 
 ## How Harmonization Works
 
@@ -49,7 +49,7 @@ If you want a column-by-column explanation of the master output, see `output_des
 The repository includes a diagnostics script focused on 2018 harmonization coverage:
 
 ```bash
-python3 diagnostics_2018.py
+python3 -m diagnostics.diagnostics_2018
 ```
 
 It writes reports to `output/diagnostics/` showing unmapped source occupations, mapped 2018 occupations with no tasks, mapped 2018 occupations with no ratings, and yearly coverage summaries. These reports include SOC codes and occupation titles.
