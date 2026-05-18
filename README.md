@@ -1,136 +1,55 @@
 # O*NET Task Harmonization Pipeline
 
-A reproducible Python pipeline for harmonizing historical O\*NET task statements and task ratings across O*NET-SOC taxonomies, with final exports for each target SOC version.
+This project provides a reproducible pipeline for harmonizing historical O*NET task statements and task ratings across O*NET-SOC taxonomies. The goal is to make long-run task data comparable over time, even when occupation codes and classification systems change between releases.
 
-## Key Features
+The pipeline is organized around a single runner script, `run_onet_harmonization.py`, which calls the step scripts in sequence. Raw source files live under `data/`, intermediate processing artifacts are written to `intermediate_data/`, and final deliverables are written to `output/`.
 
-- Single command orchestration (`run_onet_harmonization.py`)
-- Data:
-  - `data/` for raw inputs
-  - `intermediate_data/` for transient processing files
-  - `output/` for final output
-- Harmonization outputs for all configured target SOC versions:
-  - O*NET-SOC 2000, 2006, 2009, 2010, 2019
-  - SOC 2018
-- Canonical task clustering using semantic embeddings
-- Diagnostics script for 2018 coverage and occupation dropouts
+## How Harmonization Works
 
-## Project Structure
+The harmonization pipeline starts by loading every historical O*NET task statement release and tagging each row with the SOC taxonomy it originally came from based on release year. From there, it walks through the SOC crosswalk chain to map each source occupation code into each target SOC version we care about, and it keeps one-to-many mappings fully expanded so we don’t lose valid links during splits. Next, task statements are clustered by semantic similarity so near-duplicate phrasing gets grouped under a shared `canon_id`. Task ratings are then harmonized and attached back to those canonical task groups, which lets us merge statements, canon IDs, and ratings into one consistent panel. In the final step, we compute derived fields like `task_intensity` plus `first_seen`/`last_seen`, and then write the final harmonized outputs to `output/`.
 
-- `run_onet_harmonization.py`: central runner for steps 1-4
-- `pipeline_utils.py`: shared constants, paths, and text cleaning
-- `step1_prepare_task_statements.py`: SOC crosswalk harmonization of statements
-- `step2_cluster_task_statements.py`: embedding-based canonical task clustering
-- `step3_harmonize_task_ratings.py`: harmonization of importance/frequency ratings
-- `step4_build_final_outputs.py`: merge + final output generation
-- `diagnostics_2018.py`: diagnostics for 2018 harmonization coverage
+## Setup
 
-## Installation
-
-1. Create and activate a virtual environment:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-2. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-## Environment Variables
-
-Step 2 requires an OpenAI API key for embeddings.
-
-Create a `.env` file in the project root:
+Create a virtual environment, activate it, and install dependencies from `requirements.txt`. The clustering step uses OpenAI embeddings, so you also need an API key in a root-level `.env` file:
 
 ```dotenv
 OPENAI_API_KEY=your_api_key_here
 ```
 
-The pipeline loads this automatically via `python-dotenv`.
+The pipeline automatically loads this `.env` file.
 
-## Required Input Data
+## Required Data
 
-Place required source files under `data/onet/`:
+The pipeline expects O*NET source data under `data/onet/`, including historical task statements, historical task ratings, and the O*NET-SOC crosswalk files (`2000->2006`, `2006->2009`, `2009->2010`, `2010->2019`, `2019->2018`). If those files are in place, the run is fully local except for embedding calls in the clustering step.
 
-1. `historical_onet_task_statements/`
-2. `historical_onet_task_ratings/`
-3. `onet_occsoc_crosswalks/`
+## Running
 
-Required crosswalk files:
-
-- `onet_2000_to_2006_crosswalk.csv`
-- `onet_2006_to_2009_crosswalk.csv`
-- `onet_2009_to_2010_crosswalk.csv`
-- `onet_2010_to_2019_crosswalk.csv`
-- `onet_2019_to_2018_crosswalk.csv`
-
-## Harmonization Method
-
-1. Load all historical task statement releases and infer each row’s source O*NET-SOC taxonomy by release year.
-2. Traverse crosswalk chains and map each source code to every target SOC version.
-3. Expand one-to-many mappings so every valid source-target occupation mapping is preserved.
-4. Cluster semantically similar task statements and assign canonical task IDs (`canon_id`).
-5. Harmonize task ratings and link them to canonical tasks.
-6. Merge statements + canonical IDs + ratings, then compute `task_intensity`, `first_seen`, and `last_seen`.
-7. Write final exports to `output/`.
-
-## Run The Pipeline
+Run the full pipeline from project root with:
 
 ```bash
 python3 run_onet_harmonization.py
 ```
 
-Options:
+If you already have canonical task clusters generated, you can skip clustering and reuse prior intermediate outputs:
 
 ```bash
 python3 run_onet_harmonization.py --skip-clustering
-python3 run_onet_harmonization.py --similarity-threshold 0.97 --k-neighbors 50
 ```
 
-## Outputs
+## What Gets Written
 
-### Intermediate (`intermediate_data/`)
+`intermediate_data/` contains working tables used between steps, such as harmonized long-form statement mappings, cleaned unique tasks for clustering, embedding cache files, canonical task IDs, and harmonized ratings. These are meant to make the pipeline auditable and restartable.
 
-- `task_statements_harmonized_long.csv`
-- `unique_task_statements.csv`
-- `task_statements_and_ids.csv`
-- `task_embeddings.npy`
-- `task_statements_with_canon_id.csv`
-- `task_ratings_harmonized.csv`
+`output/` contains the final harmonized datasets: one master long-format file covering all target SOC versions and one file per target SOC version (including 2018 SOC). Final files also include source and target occupation titles, canonical task IDs, merged ratings, and derived timing/intensity fields.
 
-### Final (`output/`)
+If you want a column-by-column explanation of the master output, see `output_description.md`.
 
-- `onet_harmonized_all_versions_long.csv`
-- `onet_harmonized_target_soc_2000.csv`
-- `onet_harmonized_target_soc_2006.csv`
-- `onet_harmonized_target_soc_2009.csv`
-- `onet_harmonized_target_soc_2010.csv`
-- `onet_harmonized_target_soc_2018.csv`
-- `onet_harmonized_target_soc_2019.csv`
+## Diagnostics
 
-Detailed column-level documentation is in:
-- `output_description.md`
-
-## 2018 Diagnostics
-
-After running the pipeline:
+The repository includes a diagnostics script focused on 2018 harmonization coverage:
 
 ```bash
 python3 diagnostics_2018.py
 ```
 
-This writes reports to `output/diagnostics/`:
-
-- `2018_unmapped_source_occupations.csv`
-- `2018_mapped_occupations_without_tasks.csv`
-- `2018_mapped_occupations_without_ratings.csv`
-- `2018_yearly_coverage_summary.csv`
-
-## Notes
-
-- If you run with `--skip-clustering`, `intermediate_data/task_statements_with_canon_id.csv` must already exist.
-- Large historical files and embedding steps can take time; cache files are written to `intermediate_data/`.
+It writes reports to `output/diagnostics/` showing unmapped source occupations, mapped 2018 occupations with no tasks, mapped 2018 occupations with no ratings, and yearly coverage summaries. These reports include SOC codes and occupation titles.
