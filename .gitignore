@@ -1,0 +1,5 @@
+data/*
+output/*
+intermediate_data/*
+oneth_venv/*
+.env
