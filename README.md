@@ -4,6 +4,10 @@ This project provides a reproducible pipeline for harmonizing historical O*NET t
 
 The pipeline is organized around a single runner script, `run_onet_harmonization.py`, which calls step scripts from `scripts/` in sequence. Diagnostics live in `diagnostics/`. Raw source files live under `data/`, intermediate processing artifacts are written to `intermediate_data/`, and final deliverables are written to `output/`.
 
+**Todo**: 
+- Add scraping from ONET.
+- Add additional per-job/task measures (DWA, Skills, Abilities, etc)
+
 ## How Harmonization Works
 
 The harmonization pipeline starts by loading every historical O*NET task statement release and tagging each row with the SOC taxonomy it originally came from based on release year. From there, it walks through the SOC crosswalk chain to map each source occupation code into each target SOC version we care about, and it keeps one-to-many mappings fully expanded so we don’t lose valid links during splits. Next, task statements are clustered by semantic similarity so near-duplicate phrasing gets grouped under a shared `canon_id`. Task ratings are then harmonized and attached back to those canonical task groups, which lets us merge statements, canon IDs, and ratings into one consistent panel. In the final step, we compute derived fields like `task_intensity` plus `first_seen`/`last_seen`, and then write the final harmonized outputs to `output/`.
